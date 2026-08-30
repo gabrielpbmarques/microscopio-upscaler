@@ -101,15 +101,14 @@ export class WebGPUFSR {
             let center = textureLoad(inputTex, vec2<i32>(id.xy), 0).rgb;
             let threshold = params.denoiseThreshold;
             
-            if (threshold <= 0.005) {
+            if (threshold <= 0.0001) {
                 textureStore(outputDenoise, vec2<i32>(id.xy), vec4<f32>(center, 1.0));
                 return;
             }
 
             var colorSum = vec3<f32>(0.0, 0.0, 0.0);
             var weightSum = 0.0;
-            let sigmaColor = threshold * 0.35;
-            let invSigmaSq = 1.0 / (2.0 * sigmaColor * sigmaColor + 1e-5);
+            let invSigmaSq = 1.0 / (2.0 * threshold * threshold + 1e-5);
 
             for (var y: i32 = -1; y <= 1; y++) {
                 for (var x: i32 = -1; x <= 1; x++) {
@@ -293,11 +292,14 @@ export class WebGPUFSR {
             let hitMax = 1.0 - maxVal;
             let headroom = min(hitMin, hitMax);
 
-            let sharpFactor = params.sharpen * 0.18;
-            let lobe = -clamp(sqrt(max(headroom, 0.0) / max(maxVal, 0.001)) * sharpFactor, 0.0, 0.23);
+            // AMD FSR 1.0 RCAS: O limite máximo seguro do lobo negativo é 0.1875 (3/16).
+            // Isso garante que o denominador (1.0 + 4.0 * lobe) nunca caia abaixo de 0.25,
+            // permitindo que o slider vá de 0.0 até 1.0 com 100% de estabilidade e zero artefatos.
+            let maxLobe = 0.1875;
+            let lobe = -clamp(sqrt(max(headroom, 0.0) / max(maxVal, 0.001)) * (params.sharpen * maxLobe), 0.0, maxLobe);
 
             let denom = 1.0 + 4.0 * lobe;
-            let sharpened = (c + lobe * (n + s + w + e)) / max(denom, 0.001);
+            let sharpened = (c + lobe * (n + s + w + e)) / max(denom, 0.25);
             var color = clamp(sharpened, vec3<f32>(0.0), vec3<f32>(1.0));
 
             color = color + vec3<f32>(params.brightness, params.brightness, params.brightness);

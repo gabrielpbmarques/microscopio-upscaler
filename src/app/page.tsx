@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useMicroscope } from "@/hooks/useMicroscope";
 
 export default function Home() {
@@ -13,9 +14,25 @@ export default function Home() {
     sessionSeconds,
     params,
     setParams,
+    applyParams,
+    resetParams,
     togglePower,
     toggleMode
   } = useMicroscope();
+
+  const [appliedFeedback, setAppliedFeedback] = useState(false);
+
+  const handleApply = () => {
+    applyParams();
+    setAppliedFeedback(true);
+    setTimeout(() => setAppliedFeedback(false), 2000);
+  };
+
+  const handleReset = () => {
+    resetParams();
+    setAppliedFeedback(true);
+    setTimeout(() => setAppliedFeedback(false), 2000);
+  };
 
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -26,18 +43,20 @@ export default function Home() {
   const setPreset = (preset: '4x' | '10x' | '40x' | '100x') => {
     switch (preset) {
       case '4x':
-        setParams({ brightness: 0.0, contrast: 1.2, sharpenIntensity: 0.8, edgeThreshold: 0.05 });
+        applyParams({ brightness: 0.0, contrast: 1.1, sharpenIntensity: 0.35, edgeThreshold: 0.02 });
         break;
       case '10x':
-        setParams({ brightness: 0.0, contrast: 1.0, sharpenIntensity: 1.5, edgeThreshold: 0.1 });
+        applyParams({ brightness: 0.0, contrast: 1.2, sharpenIntensity: 0.55, edgeThreshold: 0.05 });
         break;
       case '40x':
-        setParams({ brightness: 0.1, contrast: 1.1, sharpenIntensity: 3.0, edgeThreshold: 0.2 });
+        applyParams({ brightness: 0.05, contrast: 1.3, sharpenIntensity: 0.75, edgeThreshold: 0.10 });
         break;
       case '100x':
-        setParams({ brightness: 0.25, contrast: 1.4, sharpenIntensity: 1.2, edgeThreshold: 0.35 });
+        applyParams({ brightness: 0.1, contrast: 1.4, sharpenIntensity: 0.95, edgeThreshold: 0.15 });
         break;
     }
+    setAppliedFeedback(true);
+    setTimeout(() => setAppliedFeedback(false), 2000);
   };
 
   return (
@@ -103,43 +122,74 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="w-full flex flex-col gap-6 mt-4">
-            <h2 className="font-label-caps text-primary-fixed text-[14px]">Ajustes Manuais</h2>
+          <div className="w-full flex flex-col gap-5 mt-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-label-caps text-primary-fixed text-[14px]">Ajustes Manuais</h2>
+              <span className="font-data-mono text-[9px] text-primary-fixed bg-primary-fixed/10 px-2 py-0.5 rounded border border-primary-fixed/30 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary-fixed animate-pulse"></span>
+                TEMPO REAL
+              </span>
+            </div>
             
             {/* Brilho */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
               <div className="flex justify-between font-data-mono text-[12px] text-on-surface-variant">
                 <span>Brilho</span>
-                <span>{params.brightness.toFixed(2)}</span>
+                <span className="text-on-surface">{params.brightness.toFixed(2)}</span>
               </div>
-              <input type="range" min="-0.5" max="0.5" step="0.05" value={params.brightness} onChange={(e) => setParams({...params, brightness: parseFloat(e.target.value)})} className="w-full accent-primary-fixed" />
+              <input type="range" min="-0.5" max="0.5" step="0.01" value={params.brightness} onChange={(e) => setParams({...params, brightness: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
             </div>
 
             {/* Contraste */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
               <div className="flex justify-between font-data-mono text-[12px] text-on-surface-variant">
                 <span>Contraste</span>
-                <span>{params.contrast.toFixed(2)}</span>
+                <span className="text-on-surface">{params.contrast.toFixed(2)}</span>
               </div>
-              <input type="range" min="0.5" max="2.0" step="0.1" value={params.contrast} onChange={(e) => setParams({...params, contrast: parseFloat(e.target.value)})} className="w-full accent-primary-fixed" />
+              <input type="range" min="0.0" max="3.0" step="0.05" value={params.contrast} onChange={(e) => setParams({...params, contrast: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
             </div>
 
             {/* Nitidez */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
               <div className="flex justify-between font-data-mono text-[12px] text-on-surface-variant">
-                <span>Nitidez</span>
-                <span>{params.sharpenIntensity.toFixed(1)}</span>
+                <span>Nitidez (RCAS)</span>
+                <span className="text-primary-fixed font-bold">{params.sharpenIntensity.toFixed(2)}</span>
               </div>
-              <input type="range" min="0.0" max="5.0" step="0.1" value={params.sharpenIntensity} onChange={(e) => setParams({...params, sharpenIntensity: parseFloat(e.target.value)})} className="w-full accent-primary-fixed" />
+              <input type="range" min="0.0" max="1.0" step="0.01" value={params.sharpenIntensity} onChange={(e) => setParams({...params, sharpenIntensity: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
             </div>
 
             {/* Limiar de Ruído */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
               <div className="flex justify-between font-data-mono text-[12px] text-on-surface-variant">
                 <span>Limiar (Ruído)</span>
-                <span>{params.edgeThreshold.toFixed(2)}</span>
+                <span className="text-on-surface">{params.edgeThreshold.toFixed(2)}</span>
               </div>
-              <input type="range" min="0.0" max="0.5" step="0.05" value={params.edgeThreshold} onChange={(e) => setParams({...params, edgeThreshold: parseFloat(e.target.value)})} className="w-full accent-primary-fixed" />
+              <input type="range" min="0.0" max="0.5" step="0.01" value={params.edgeThreshold} onChange={(e) => setParams({...params, edgeThreshold: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-2 pt-2">
+              <button
+                onClick={handleApply}
+                className={`w-full flex items-center justify-center gap-2 font-data-mono text-[12px] font-semibold py-2.5 px-4 rounded-md transition-all cursor-pointer ${
+                  appliedFeedback 
+                    ? 'bg-primary-fixed text-on-primary-fixed shadow-[0_0_18px_rgba(36,255,205,0.7)]' 
+                    : 'bg-primary-fixed text-on-primary-fixed shadow-[0_0_10px_rgba(36,255,205,0.3)] hover:shadow-[0_0_16px_rgba(36,255,205,0.5)] active:scale-95'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  {appliedFeedback ? "check_circle" : "tune"}
+                </span>
+                <span>{appliedFeedback ? "ALTERAÇÕES APLICADAS!" : "APLICAR ALTERAÇÕES"}</span>
+              </button>
+
+              <button
+                onClick={handleReset}
+                className="w-full flex items-center justify-center gap-2 bg-surface-variant hover:bg-surface-bright text-on-surface-variant hover:text-on-surface font-data-mono text-[11px] py-2 px-4 rounded-md transition-colors border border-outline-variant cursor-pointer active:scale-95"
+              >
+                <span className="material-symbols-outlined text-[16px]">restart_alt</span>
+                <span>Restaurar Padrões</span>
+              </button>
             </div>
           </div>
 

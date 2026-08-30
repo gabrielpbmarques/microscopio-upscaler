@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { WebGPUFSR } from '../lib/webgpu-fsr';
 
 export interface WebGPUParameters {
-  brightness: number; // -0.5 to 0.5
-  contrast: number; // 0.5 to 2.0
-  sharpenIntensity: number; // 0.0 to 5.0 (will map to FSR stops internally)
-  edgeThreshold: number; // For denoise threshold (0.0 to 1.0)
+  brightness: number; // Raw WebGPU offset: -0.5 a 0.5
+  contrast: number; // Raw WebGPU factor: 0.0 a 3.0
+  sharpenIntensity: number; // Raw WebGPU RCAS factor: 0.0 a 1.0
+  edgeThreshold: number; // Raw WebGPU Denoise Sigma: 0.0 a 0.5
 }
 
 export function useMicroscope() {
@@ -27,8 +27,8 @@ export function useMicroscope() {
   const [params, setParams] = useState<WebGPUParameters>({
     brightness: 0.0,
     contrast: 1.0,
-    sharpenIntensity: 1.2,
-    edgeThreshold: 0.1, // now acts as denoise
+    sharpenIntensity: 0.5,
+    edgeThreshold: 0.05,
   });
 
   const lastTimeRef = useRef(0);
@@ -186,6 +186,29 @@ export function useMicroscope() {
     setIsUpscaledMode(!isUpscaledMode);
   };
 
+  const applyParams = (customParams?: WebGPUParameters) => {
+    const target = customParams || params;
+    setParams(target);
+    if (fsrRef.current) {
+      fsrRef.current.updateParams(
+        target.brightness,
+        target.contrast,
+        target.sharpenIntensity,
+        target.edgeThreshold
+      );
+    }
+  };
+
+  const resetParams = () => {
+    const defaultParams: WebGPUParameters = {
+      brightness: 0.0,
+      contrast: 1.0,
+      sharpenIntensity: 1.5,
+      edgeThreshold: 0.1,
+    };
+    applyParams(defaultParams);
+  };
+
   return {
     videoRef,
     canvasRef,
@@ -196,6 +219,8 @@ export function useMicroscope() {
     sessionSeconds,
     params,
     setParams,
+    applyParams,
+    resetParams,
     togglePower,
     toggleMode
   };
