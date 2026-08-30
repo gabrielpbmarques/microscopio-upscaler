@@ -2,11 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import { WebGPUFSR } from '../lib/webgpu-fsr';
 
 export interface WebGPUParameters {
-  brightness: number; // Raw WebGPU offset: -0.5 a 0.5
-  contrast: number; // Raw WebGPU factor: 0.0 a 3.0
-  sharpenIntensity: number; // Raw WebGPU RCAS factor: 0.0 a 1.0
-  edgeThreshold: number; // Raw WebGPU Denoise Sigma: 0.0 a 0.5
+  brightness: number; // -0.5 a 0.5
+  contrast: number; // 0.0 a 3.0
+  sharpenIntensity: number; // 0.0 a 1.0 (RCAS)
+  edgeThreshold: number; // 0.0 a 0.5 (Denoise)
+  gamma: number; // 0.5 a 2.5 (Gamma Curve)
+  saturation: number; // 0.0 a 2.5 (Saturação)
+  localContrast: number; // 0.0 a 1.0 (Microcontraste)
+  edgeReconstruction: number; // 1.0 a 5.0 (Agressividade EASU)
+  detailBoost: number; // 0.0 a 1.0 (Laplaciano de Microdetalhes)
+  defringe: number; // 0.0 a 1.0 (Correção de Aberração)
+  colorMode: number; // 0=Normal, 1=DAPI, 2=GFP, 3=H&E, 4=Fase/Invertido
 }
+
+export type UpscaleTarget = '2x' | '4k' | '4x';
 
 export function useMicroscope() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -15,6 +24,7 @@ export function useMicroscope() {
   const [isPowerOn, setIsPowerOn] = useState(false);
   const isPowerOnRef = useRef(false);
   const [isUpscaledMode, setIsUpscaledMode] = useState(true);
+  const [upscaleTarget, setUpscaleTarget] = useState<UpscaleTarget>('4k');
   const [signalStatus, setSignalStatus] = useState("AGUARDANDO");
   const [fps, setFps] = useState(0);
   const [sessionSeconds, setSessionSeconds] = useState(0);
@@ -27,8 +37,15 @@ export function useMicroscope() {
   const [params, setParams] = useState<WebGPUParameters>({
     brightness: 0.0,
     contrast: 1.0,
-    sharpenIntensity: 0.5,
-    edgeThreshold: 0.05,
+    sharpenIntensity: 0.65,
+    edgeThreshold: 0.04,
+    gamma: 1.0,
+    saturation: 1.0,
+    localContrast: 0.2,
+    edgeReconstruction: 2.0,
+    detailBoost: 0.3,
+    defringe: 0.0,
+    colorMode: 0,
   });
 
   const lastTimeRef = useRef(0);
@@ -68,6 +85,45 @@ export function useMicroscope() {
     return fsr;
   }
 
+  const getTargetDimensions = (videoWidth: number, videoHeight: number, target: UpscaleTarget) => {
+    const aspect = videoHeight > 0 ? videoWidth / videoHeight : 16 / 9;
+    if (target === '4k') {
+      const targetW = 3840;
+      const targetH = Math.round(targetW / aspect);
+      return { width: targetW, height: targetH };
+    } else if (target === '4x') {
+      return { width: videoWidth * 4, height: videoHeight * 4 };
+    } else {
+      // 2x
+      return { width: videoWidth * 2, height: videoHeight * 2 };
+    }
+  };
+
+  const reinitPipelines = async (target: UpscaleTarget) => {
+    if (!videoRef.current || !canvasRef.current || !fsrRef.current) return;
+    const { videoWidth, videoHeight } = videoRef.current;
+    if (videoWidth <= 0 || videoHeight <= 0) return;
+
+    const dims = getTargetDimensions(videoWidth, videoHeight, target);
+    canvasRef.current.width = dims.width;
+    canvasRef.current.height = dims.height;
+
+    await fsrRef.current.initialize(videoWidth, videoHeight, dims.width, dims.height);
+    fsrRef.current.updateParams(
+      paramsRef.current.brightness,
+      paramsRef.current.contrast,
+      paramsRef.current.sharpenIntensity,
+      paramsRef.current.edgeThreshold,
+      paramsRef.current.gamma,
+      paramsRef.current.saturation,
+      paramsRef.current.localContrast,
+      paramsRef.current.edgeReconstruction,
+      paramsRef.current.detailBoost,
+      paramsRef.current.defringe,
+      paramsRef.current.colorMode
+    );
+  };
+
   const paramsRef = useRef(params);
   useEffect(() => {
     paramsRef.current = params;
@@ -76,10 +132,22 @@ export function useMicroscope() {
         params.brightness,
         params.contrast,
         params.sharpenIntensity,
-        params.edgeThreshold
+        params.edgeThreshold,
+        params.gamma,
+        params.saturation,
+        params.localContrast,
+        params.edgeReconstruction,
+        params.detailBoost,
+        params.defringe,
+        params.colorMode
       );
     }
   }, [params]);
+
+  const changeUpscaleTarget = async (target: UpscaleTarget) => {
+    setUpscaleTarget(target);
+    await reinitPipelines(target);
+  };
 
   function renderLoop(timestamp: number) {
     const video = videoRef.current;
@@ -117,9 +185,12 @@ export function useMicroscope() {
           videoRef.current.srcObject = stream;
           videoRef.current.onloadedmetadata = async () => {
             videoRef.current!.play();
-            if (canvasRef.current && videoRef.current) {
-              canvasRef.current.width = videoRef.current.videoWidth * 2;
-              canvasRef.current.height = videoRef.current.videoHeight * 2;
+            const { videoWidth, videoHeight } = videoRef.current!;
+            
+            if (canvasRef.current) {
+              const dims = getTargetDimensions(videoWidth, videoHeight, upscaleTarget);
+              canvasRef.current.width = dims.width;
+              canvasRef.current.height = dims.height;
             }
 
             if (!fsrRef.current) {
@@ -134,8 +205,8 @@ export function useMicroscope() {
 
             if (fsrRef.current && videoRef.current && canvasRef.current) {
               await fsrRef.current.initialize(
-                videoRef.current.videoWidth,
-                videoRef.current.videoHeight,
+                videoWidth,
+                videoHeight,
                 canvasRef.current.width,
                 canvasRef.current.height
               );
@@ -143,7 +214,14 @@ export function useMicroscope() {
                 paramsRef.current.brightness,
                 paramsRef.current.contrast,
                 paramsRef.current.sharpenIntensity,
-                paramsRef.current.edgeThreshold
+                paramsRef.current.edgeThreshold,
+                paramsRef.current.gamma,
+                paramsRef.current.saturation,
+                paramsRef.current.localContrast,
+                paramsRef.current.edgeReconstruction,
+                paramsRef.current.detailBoost,
+                paramsRef.current.defringe,
+                paramsRef.current.colorMode
               );
             }
 
@@ -186,15 +264,22 @@ export function useMicroscope() {
     setIsUpscaledMode(!isUpscaledMode);
   };
 
-  const applyParams = (customParams?: WebGPUParameters) => {
-    const target = customParams || params;
+  const applyParams = (customParams?: Partial<WebGPUParameters>) => {
+    const target = { ...params, ...(customParams || {}) };
     setParams(target);
     if (fsrRef.current) {
       fsrRef.current.updateParams(
         target.brightness,
         target.contrast,
         target.sharpenIntensity,
-        target.edgeThreshold
+        target.edgeThreshold,
+        target.gamma,
+        target.saturation,
+        target.localContrast,
+        target.edgeReconstruction,
+        target.detailBoost,
+        target.defringe,
+        target.colorMode
       );
     }
   };
@@ -203,8 +288,15 @@ export function useMicroscope() {
     const defaultParams: WebGPUParameters = {
       brightness: 0.0,
       contrast: 1.0,
-      sharpenIntensity: 1.5,
-      edgeThreshold: 0.1,
+      sharpenIntensity: 0.65,
+      edgeThreshold: 0.04,
+      gamma: 1.0,
+      saturation: 1.0,
+      localContrast: 0.2,
+      edgeReconstruction: 2.0,
+      detailBoost: 0.3,
+      defringe: 0.0,
+      colorMode: 0,
     };
     applyParams(defaultParams);
   };
@@ -214,6 +306,8 @@ export function useMicroscope() {
     canvasRef,
     isPowerOn,
     isUpscaledMode,
+    upscaleTarget,
+    changeUpscaleTarget,
     signalStatus,
     fps,
     sessionSeconds,

@@ -71,15 +71,15 @@ export class WebGPUFSR {
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
     });
 
-    // 2. Uniforms Buffer (Params: brightness, contrast, sharpen, denoiseThreshold)
+    // 2. Uniforms Buffer (48 bytes: 12 floats = 3 x 16-byte blocks)
     this.uniformBuffer = this.device.createBuffer({
-      size: 16,
+      size: 48,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
     // 3. Shaders Modules (Separate modules to avoid WGSL duplicate binding conflicts)
 
-    // Module 1: Denoise
+    // Module 1: Denoise + Defringe
     const shaderDenoise = this.device.createShaderModule({
       code: `
         struct Params {
@@ -87,6 +87,16 @@ export class WebGPUFSR {
           contrast: f32,
           sharpen: f32,
           denoiseThreshold: f32,
+
+          gamma: f32,
+          saturation: f32,
+          localContrast: f32,
+          edgeReconstruction: f32,
+
+          detailBoost: f32,
+          defringe: f32,
+          colorMode: f32,
+          padding: f32,
         };
 
         @group(0) @binding(0) var<uniform> params: Params;
@@ -98,9 +108,19 @@ export class WebGPUFSR {
             let dim = textureDimensions(inputTex);
             if (id.x >= dim.x || id.y >= dim.y) { return; }
 
-            let center = textureLoad(inputTex, vec2<i32>(id.xy), 0).rgb;
+            var center = textureLoad(inputTex, vec2<i32>(id.xy), 0).rgb;
+
+            // Optional Defringe / Chromatic Aberration correction
+            if (params.defringe > 0.01) {
+                let rSample = textureLoad(inputTex, clamp(vec2<i32>(id.xy) + vec2<i32>(-1, 0), vec2<i32>(0), vec2<i32>(dim) - 1), 0).r;
+                let bSample = textureLoad(inputTex, clamp(vec2<i32>(id.xy) + vec2<i32>(1, 0), vec2<i32>(0), vec2<i32>(dim) - 1), 0).b;
+                let avgRGB = (center.r + center.g + center.b) / 3.0;
+                let alignedR = mix(center.r, (center.r + rSample) * 0.5, params.defringe * 0.7);
+                let alignedB = mix(center.b, (center.b + bSample) * 0.5, params.defringe * 0.7);
+                center = vec3<f32>(alignedR, center.g, alignedB);
+            }
+
             let threshold = params.denoiseThreshold;
-            
             if (threshold <= 0.0001) {
                 textureStore(outputDenoise, vec2<i32>(id.xy), vec4<f32>(center, 1.0));
                 return;
@@ -131,11 +151,29 @@ export class WebGPUFSR {
       `
     });
 
-    // Module 2: EASU (AMD FSR 1.0 Edge-Adaptive Spatial Upsampling)
+    // Module 2: EASU (AMD FSR 1.0 Edge-Adaptive Spatial Upsampling + Anisotropy Multiplier)
     const shaderEASU = this.device.createShaderModule({
       code: `
-        @group(0) @binding(0) var texDenoised: texture_2d<f32>;
-        @group(0) @binding(1) var outputEASU: texture_storage_2d<rgba8unorm, write>;
+        struct Params {
+          brightness: f32,
+          contrast: f32,
+          sharpen: f32,
+          denoiseThreshold: f32,
+
+          gamma: f32,
+          saturation: f32,
+          localContrast: f32,
+          edgeReconstruction: f32,
+
+          detailBoost: f32,
+          defringe: f32,
+          colorMode: f32,
+          padding: f32,
+        };
+
+        @group(0) @binding(0) var<uniform> params: Params;
+        @group(0) @binding(1) var texDenoised: texture_2d<f32>;
+        @group(0) @binding(2) var outputEASU: texture_storage_2d<rgba8unorm, write>;
 
         fn luma(color: vec3<f32>) -> f32 {
             return dot(color, vec3<f32>(0.299, 0.587, 0.114));
@@ -205,10 +243,13 @@ export class WebGPUFSR {
             var stretch = 1.0;
             var normDir = vec2<f32>(1.0, 0.0);
 
+            // Anisotropy Multiplier from params.edgeReconstruction
+            let edgeMultiplier = clamp(params.edgeReconstruction, 1.0, 5.0);
+
             if (dirLenSq > 1e-6) {
                 let invLen = inverseSqrt(dirLenSq);
                 normDir = dir * invLen;
-                stretch = clamp(1.0 + sqrt(dirLenSq) * 3.0, 1.0, 2.5);
+                stretch = clamp(1.0 + sqrt(dirLenSq) * (edgeMultiplier * 2.0), 1.0, edgeMultiplier * 2.5);
             }
 
             let perpDir = vec2<f32>(-normDir.y, normDir.x);
@@ -256,7 +297,7 @@ export class WebGPUFSR {
       `
     });
 
-    // Module 3: RCAS (AMD FSR 1.0 Robust Contrast-Adaptive Sharpening)
+    // Module 3: RCAS + Microdetail Synthesis + Local Contrast CLAHE + Color Grading
     const shaderRCAS = this.device.createShaderModule({
       code: `
         struct Params {
@@ -264,11 +305,25 @@ export class WebGPUFSR {
           contrast: f32,
           sharpen: f32,
           denoiseThreshold: f32,
+
+          gamma: f32,
+          saturation: f32,
+          localContrast: f32,
+          edgeReconstruction: f32,
+
+          detailBoost: f32,
+          defringe: f32,
+          colorMode: f32,
+          padding: f32,
         };
 
         @group(0) @binding(0) var<uniform> params: Params;
         @group(0) @binding(1) var texUpscaled: texture_2d<f32>;
         @group(0) @binding(2) var outputFinal: texture_storage_2d<rgba8unorm, write>;
+
+        fn luma(color: vec3<f32>) -> f32 {
+            return dot(color, vec3<f32>(0.299, 0.587, 0.114));
+        }
 
         @compute @workgroup_size(8, 8)
         fn computeRCAS(@builtin(global_invocation_id) id: vec3<u32>) {
@@ -292,21 +347,64 @@ export class WebGPUFSR {
             let hitMax = 1.0 - maxVal;
             let headroom = min(hitMin, hitMax);
 
-            // AMD FSR 1.0 RCAS: O limite máximo seguro do lobo negativo é 0.1875 (3/16).
-            // Isso garante que o denominador (1.0 + 4.0 * lobe) nunca caia abaixo de 0.25,
-            // permitindo que o slider vá de 0.0 até 1.0 com 100% de estabilidade e zero artefatos.
+            // 1. AMD FSR 1.0 RCAS (Safe negative lobe)
             let maxLobe = 0.1875;
             let lobe = -clamp(sqrt(max(headroom, 0.0) / max(maxVal, 0.001)) * (params.sharpen * maxLobe), 0.0, maxLobe);
 
             let denom = 1.0 + 4.0 * lobe;
-            let sharpened = (c + lobe * (n + s + w + e)) / max(denom, 0.25);
-            var color = clamp(sharpened, vec3<f32>(0.0), vec3<f32>(1.0));
+            var enhanced = (c + lobe * (n + s + w + e)) / max(denom, 0.25);
 
-            color = color + vec3<f32>(params.brightness, params.brightness, params.brightness);
-            color = (color - vec3<f32>(0.5, 0.5, 0.5)) * params.contrast + vec3<f32>(0.5, 0.5, 0.5);
-            color = clamp(color, vec3<f32>(0.0, 0.0, 0.0), vec3<f32>(1.0, 1.0, 1.0));
+            // 2. High-Frequency Laplacian Microdetail Injection
+            if (params.detailBoost > 0.001) {
+                let laplacian = 4.0 * c - (n + s + w + e);
+                enhanced = enhanced + laplacian * (params.detailBoost * 0.75);
+            }
 
-            textureStore(outputFinal, pos, vec4<f32>(color, 1.0));
+            // 3. Local Contrast Enhancement (Microcontrast CLAHE-like)
+            if (params.localContrast > 0.001) {
+                let localAvg = (c + n + s + w + e) * 0.2;
+                let localDiff = enhanced - localAvg;
+                enhanced = enhanced + localDiff * (params.localContrast * 1.2);
+            }
+
+            enhanced = clamp(enhanced, vec3<f32>(0.0), vec3<f32>(1.0));
+
+            // 4. Saturation & Chromatic Adjustment
+            let lumaVal = luma(enhanced);
+            enhanced = mix(vec3<f32>(lumaVal), enhanced, params.saturation);
+
+            // 5. Brightness & Contrast
+            enhanced = enhanced + vec3<f32>(params.brightness);
+            enhanced = (enhanced - vec3<f32>(0.5)) * params.contrast + vec3<f32>(0.5);
+            enhanced = clamp(enhanced, vec3<f32>(0.0), vec3<f32>(1.0));
+
+            // 6. Gamma Curve
+            let gammaExp = 1.0 / max(params.gamma, 0.1);
+            enhanced = pow(enhanced, vec3<f32>(gammaExp));
+            enhanced = clamp(enhanced, vec3<f32>(0.0), vec3<f32>(1.0));
+
+            // 7. Scientific Pseudo-Coloring Modes
+            let mode = i32(round(params.colorMode));
+            var finalColor = enhanced;
+            let lum = luma(enhanced);
+
+            if (mode == 1) {
+                // DAPI Fluorescent Blue
+                finalColor = vec3<f32>(lum * 0.1, lum * 0.55, min(lum * 1.6, 1.0));
+            } else if (mode == 2) {
+                // GFP Fluorescent Green
+                finalColor = vec3<f32>(lum * 0.15, min(lum * 1.5, 1.0), lum * 0.35);
+            } else if (mode == 3) {
+                // H&E Histology (Hematoxylin & Eosin)
+                finalColor = vec3<f32>(min(lum * 1.3, 1.0), lum * 0.45, min(lum * 0.95, 1.0));
+            } else if (mode == 4) {
+                // Phase Contrast / Inverted Darkfield
+                let inverted = 1.0 - enhanced;
+                finalColor = (inverted - vec3<f32>(0.5)) * 1.4 + vec3<f32>(0.5);
+            }
+
+            finalColor = clamp(finalColor, vec3<f32>(0.0), vec3<f32>(1.0));
+            textureStore(outputFinal, pos, vec4<f32>(finalColor, 1.0));
         }
       `
     });
@@ -391,8 +489,9 @@ export class WebGPUFSR {
     this.bindGroupEASU = this.device.createBindGroup({
       layout: this.pipelineEASU.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.textureDenoised.createView() },
-        { binding: 1, resource: this.textureUpscaled.createView() },
+        { binding: 0, resource: { buffer: this.uniformBuffer } },
+        { binding: 1, resource: this.textureDenoised.createView() },
+        { binding: 2, resource: this.textureUpscaled.createView() },
       ]
     });
 
@@ -414,10 +513,33 @@ export class WebGPUFSR {
     });
   }
 
-  updateParams(brightness: number, contrast: number, sharpen: number, denoiseThreshold: number) {
+  updateParams(
+    brightness: number,
+    contrast: number,
+    sharpen: number,
+    denoiseThreshold: number,
+    gamma: number = 1.0,
+    saturation: number = 1.0,
+    localContrast: number = 0.0,
+    edgeReconstruction: number = 1.5,
+    detailBoost: number = 0.0,
+    defringe: number = 0.0,
+    colorMode: number = 0
+  ) {
     if (!this.uniformBuffer) return;
     const data = new Float32Array([
-      brightness, contrast, sharpen, denoiseThreshold
+      brightness,
+      contrast,
+      sharpen,
+      denoiseThreshold,
+      gamma,
+      saturation,
+      localContrast,
+      edgeReconstruction,
+      detailBoost,
+      defringe,
+      colorMode,
+      0.0 // padding
     ]);
     this.device.queue.writeBuffer(this.uniformBuffer, 0, data);
   }

@@ -9,6 +9,8 @@ export default function Home() {
     canvasRef,
     isPowerOn,
     isUpscaledMode,
+    upscaleTarget,
+    changeUpscaleTarget,
     signalStatus,
     fps,
     sessionSeconds,
@@ -43,16 +45,60 @@ export default function Home() {
   const setPreset = (preset: '4x' | '10x' | '40x' | '100x') => {
     switch (preset) {
       case '4x':
-        applyParams({ brightness: 0.0, contrast: 1.1, sharpenIntensity: 0.35, edgeThreshold: 0.02 });
+        applyParams({
+          brightness: 0.0,
+          contrast: 1.1,
+          sharpenIntensity: 0.45,
+          edgeThreshold: 0.02,
+          gamma: 1.0,
+          saturation: 1.0,
+          localContrast: 0.15,
+          edgeReconstruction: 1.8,
+          detailBoost: 0.2,
+          defringe: 0.0,
+        });
         break;
       case '10x':
-        applyParams({ brightness: 0.0, contrast: 1.2, sharpenIntensity: 0.55, edgeThreshold: 0.05 });
+        applyParams({
+          brightness: 0.0,
+          contrast: 1.2,
+          sharpenIntensity: 0.65,
+          edgeThreshold: 0.04,
+          gamma: 1.0,
+          saturation: 1.05,
+          localContrast: 0.25,
+          edgeReconstruction: 2.2,
+          detailBoost: 0.35,
+          defringe: 0.1,
+        });
         break;
       case '40x':
-        applyParams({ brightness: 0.05, contrast: 1.3, sharpenIntensity: 0.75, edgeThreshold: 0.10 });
+        applyParams({
+          brightness: 0.05,
+          contrast: 1.3,
+          sharpenIntensity: 0.8,
+          edgeThreshold: 0.08,
+          gamma: 1.05,
+          saturation: 1.1,
+          localContrast: 0.4,
+          edgeReconstruction: 3.0,
+          detailBoost: 0.55,
+          defringe: 0.25,
+        });
         break;
       case '100x':
-        applyParams({ brightness: 0.1, contrast: 1.4, sharpenIntensity: 0.95, edgeThreshold: 0.15 });
+        applyParams({
+          brightness: 0.1,
+          contrast: 1.4,
+          sharpenIntensity: 0.95,
+          edgeThreshold: 0.12,
+          gamma: 1.1,
+          saturation: 1.15,
+          localContrast: 0.55,
+          edgeReconstruction: 4.0,
+          detailBoost: 0.75,
+          defringe: 0.4,
+        });
         break;
     }
     setAppliedFeedback(true);
@@ -61,7 +107,7 @@ export default function Home() {
 
   return (
     <>
-      <main className="relative flex-1 bg-black">
+      <main className="relative flex-1 bg-black overflow-hidden">
         {/* Synthetic Feed (when off) */}
         <div
           className={`absolute inset-0 z-[0] opacity-40 bg-[url('https://lh3.googleusercontent.com/aida-public/AB6AXuBYzwSopVfwNChzz99pbbfJKLV-pkvlNfg_DvLjA0C6El0M5oeU4a63PLW5smow1ycNF1Ke2meXvFTayPyrQKofC9ICFNQwmjt6klWlxnIEl3L3cPhiwed7oQVC56iOdrCSNYjMU9M3od0RiIuv01xvi-txZyfWdQV5seC7OgYpTHSFTsOM3YEjLDFy59Ia9rZIfUXZeCeKxnQnjIc6UU2z-_qrmbyv5lhudyhHEcGdOllspfmercxa')] bg-cover bg-center transition-opacity duration-700 ${isPowerOn ? 'hidden' : 'block'}`}
@@ -72,8 +118,8 @@ export default function Home() {
         <canvas ref={canvasRef} className={`w-full h-full object-cover ${(!isPowerOn || !isUpscaledMode) ? 'hidden' : 'block'}`} />
 
         {/* HUD Overlays */}
-        <div className="absolute inset-0 scanlines z-10"></div>
-        <div className="absolute inset-0 vignette z-20"></div>
+        <div className="absolute inset-0 scanlines z-10 pointer-events-none"></div>
+        <div className="absolute inset-0 vignette z-20 pointer-events-none"></div>
 
         <div className="fixed inset-0 pointer-events-none z-30 flex items-center justify-center">
           <div className="absolute top-1/2 left-0 w-full h-[0.5px] bg-primary-fixed-dim/30"></div>
@@ -94,81 +140,206 @@ export default function Home() {
               Sinal: <span>{signalStatus}</span>
             </div>
             <div className="font-data-mono text-[10px] text-on-surface-variant uppercase mt-1">
-              MODO: <span className="text-primary-fixed">{isUpscaledMode ? "ALTA RESOLUÇÃO" : "VISÃO DIRETA"}</span>
+              MODO: <span className="text-primary-fixed">{isUpscaledMode ? `FSR ${upscaleTarget.toUpperCase()} ULTRA` : "VISÃO DIRETA"}</span>
             </div>
           </div>
         </header>
 
         {/* SideNavBar - Controls */}
-        <aside className="hidden md:flex fixed right-0 top-0 h-full w-[340px] bg-surface/80 backdrop-blur-xl border-l border-outline-variant shadow-2xl flex-col items-start py-8 px-edge-margin gap-6 z-40 overflow-y-auto pointer-events-auto">
-          <div className="w-full">
-            <p className="font-data-mono text-data-mono text-on-surface-variant">
-              Sessão Ativa: <span>{formatTime(sessionSeconds)}</span>
+        <aside className="hidden md:flex fixed right-0 top-0 h-full w-[360px] bg-surface/85 backdrop-blur-xl border-l border-outline-variant shadow-2xl flex-col items-start py-6 px-edge-margin gap-5 z-40 overflow-y-auto pointer-events-auto custom-scrollbar">
+          <div className="w-full flex justify-between items-center pb-2 border-b border-outline-variant/40">
+            <p className="font-data-mono text-[12px] text-on-surface-variant">
+              Sessão: <span className="text-primary-fixed">{formatTime(sessionSeconds)}</span>
             </p>
+            <div className="flex items-center gap-1.5 font-data-mono text-[11px] text-primary-fixed bg-primary-fixed/10 px-2 py-0.5 rounded border border-primary-fixed/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary-fixed animate-pulse"></span>
+              GPU {fps} FPS
+            </div>
           </div>
 
-          <div className="w-full mt-4 flex flex-col gap-4">
-            <h2 className="font-label-caps text-primary-fixed text-[14px]">Predefinições de Lente</h2>
-            <div className="grid grid-cols-2 gap-2">
-              {(['4x', '10x', '40x', '100x'] as const).map(preset => (
+          {/* Upscaling Resolution Engine */}
+          <div className="w-full flex flex-col gap-2">
+            <h2 className="font-label-caps text-primary-fixed text-[13px] flex items-center justify-between">
+              <span>Resolução de Upscaling</span>
+              <span className="text-[10px] text-on-surface-variant font-normal uppercase">EASU FSR 1.0</span>
+            </h2>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(['2x', '4k', '4x'] as const).map(target => (
                 <button
-                  key={preset}
-                  onClick={() => setPreset(preset)}
-                  className="bg-surface-variant hover:bg-surface-bright text-on-surface-variant hover:text-primary-fixed font-data-mono text-[12px] py-2 rounded-md transition-colors border border-outline-variant"
+                  key={target}
+                  onClick={() => changeUpscaleTarget(target)}
+                  className={`font-data-mono text-[11px] py-1.5 px-1 rounded transition-all border cursor-pointer uppercase ${
+                    upscaleTarget === target
+                      ? 'bg-primary-fixed text-on-primary-fixed border-primary-fixed font-bold shadow-[0_0_10px_rgba(36,255,205,0.4)]'
+                      : 'bg-surface-variant hover:bg-surface-bright text-on-surface-variant border-outline-variant'
+                  }`}
                 >
-                  {preset} {preset === '100x' && '(Oil)'}
+                  {target === '4k' ? '4K Nativo' : `${target.toUpperCase()} UHD`}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="w-full flex flex-col gap-5 mt-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-label-caps text-primary-fixed text-[14px]">Ajustes Manuais</h2>
-              <span className="font-data-mono text-[9px] text-primary-fixed bg-primary-fixed/10 px-2 py-0.5 rounded border border-primary-fixed/30 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary-fixed animate-pulse"></span>
-                TEMPO REAL
-              </span>
+          {/* Scientific Color Modes */}
+          <div className="w-full flex flex-col gap-2">
+            <h2 className="font-label-caps text-primary-fixed text-[13px]">Coloração Científica</h2>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { id: 0, label: 'Padrão' },
+                { id: 1, label: 'DAPI Azul' },
+                { id: 2, label: 'GFP Verde' },
+                { id: 3, label: 'H&E Rosa' },
+                { id: 4, label: 'Contraste Fase' },
+              ].map(mode => (
+                <button
+                  key={mode.id}
+                  onClick={() => applyParams({ colorMode: mode.id })}
+                  className={`font-data-mono text-[10px] py-1.5 px-1 rounded transition-all border cursor-pointer ${
+                    params.colorMode === mode.id
+                      ? 'bg-primary-fixed text-on-primary-fixed border-primary-fixed font-bold shadow-[0_0_8px_rgba(36,255,205,0.3)]'
+                      : 'bg-surface-variant hover:bg-surface-bright text-on-surface-variant border-outline-variant'
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              ))}
             </div>
-            
-            {/* Brilho */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex justify-between font-data-mono text-[12px] text-on-surface-variant">
-                <span>Brilho</span>
-                <span className="text-on-surface">{params.brightness.toFixed(2)}</span>
+          </div>
+
+          {/* Lens Presets */}
+          <div className="w-full flex flex-col gap-2">
+            <h2 className="font-label-caps text-primary-fixed text-[13px]">Predefinições de Lente</h2>
+            <div className="grid grid-cols-4 gap-1.5">
+              {(['4x', '10x', '40x', '100x'] as const).map(preset => (
+                <button
+                  key={preset}
+                  onClick={() => setPreset(preset)}
+                  className="bg-surface-variant hover:bg-surface-bright text-on-surface-variant hover:text-primary-fixed font-data-mono text-[11px] py-1.5 rounded transition-colors border border-outline-variant cursor-pointer text-center"
+                >
+                  {preset} {preset === '100x' && 'Oil'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Manual Controls */}
+          <div className="w-full flex flex-col gap-4 mt-1">
+            {/* Section 1: Super Resolution & Detail */}
+            <div className="flex flex-col gap-3 p-3 rounded-lg bg-surface-container-lowest/60 border border-outline-variant/50">
+              <h3 className="font-label-caps text-primary-fixed-dim text-[11px] uppercase tracking-wider flex items-center justify-between">
+                <span>Super Resolução & Nitidez</span>
+                <span className="material-symbols-outlined text-[15px]">auto_fix_high</span>
+              </h3>
+
+              {/* Nitidez RCAS */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between font-data-mono text-[11px] text-on-surface-variant">
+                  <span>Nitidez FSR (RCAS)</span>
+                  <span className="text-primary-fixed font-bold">{params.sharpenIntensity.toFixed(2)}</span>
+                </div>
+                <input type="range" min="0.0" max="1.0" step="0.01" value={params.sharpenIntensity} onChange={(e) => setParams({...params, sharpenIntensity: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
               </div>
-              <input type="range" min="-0.5" max="0.5" step="0.01" value={params.brightness} onChange={(e) => setParams({...params, brightness: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
+
+              {/* Injeção de Microdetalhes */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between font-data-mono text-[11px] text-on-surface-variant">
+                  <span>Injeção de Microdetalhes</span>
+                  <span className="text-primary-fixed font-bold">{params.detailBoost.toFixed(2)}</span>
+                </div>
+                <input type="range" min="0.0" max="1.0" step="0.01" value={params.detailBoost} onChange={(e) => setParams({...params, detailBoost: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
+              </div>
+
+              {/* Agressividade EASU */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between font-data-mono text-[11px] text-on-surface-variant">
+                  <span>Agressividade de Borda (EASU)</span>
+                  <span className="text-primary-fixed font-bold">{params.edgeReconstruction.toFixed(1)}x</span>
+                </div>
+                <input type="range" min="1.0" max="5.0" step="0.1" value={params.edgeReconstruction} onChange={(e) => setParams({...params, edgeReconstruction: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
+              </div>
+
+              {/* Microcontraste Local */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between font-data-mono text-[11px] text-on-surface-variant">
+                  <span>Microcontraste Celular</span>
+                  <span className="text-primary-fixed font-bold">{params.localContrast.toFixed(2)}</span>
+                </div>
+                <input type="range" min="0.0" max="1.0" step="0.01" value={params.localContrast} onChange={(e) => setParams({...params, localContrast: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
+              </div>
             </div>
 
-            {/* Contraste */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex justify-between font-data-mono text-[12px] text-on-surface-variant">
-                <span>Contraste</span>
-                <span className="text-on-surface">{params.contrast.toFixed(2)}</span>
+            {/* Section 2: Tonalidade & Claridade */}
+            <div className="flex flex-col gap-3 p-3 rounded-lg bg-surface-container-lowest/60 border border-outline-variant/50">
+              <h3 className="font-label-caps text-primary-fixed-dim text-[11px] uppercase tracking-wider flex items-center justify-between">
+                <span>Tonalidade & Contraste</span>
+                <span className="material-symbols-outlined text-[15px]">contrast</span>
+              </h3>
+
+              {/* Contraste */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between font-data-mono text-[11px] text-on-surface-variant">
+                  <span>Contraste Global</span>
+                  <span className="text-on-surface">{params.contrast.toFixed(2)}</span>
+                </div>
+                <input type="range" min="0.0" max="3.0" step="0.05" value={params.contrast} onChange={(e) => setParams({...params, contrast: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
               </div>
-              <input type="range" min="0.0" max="3.0" step="0.05" value={params.contrast} onChange={(e) => setParams({...params, contrast: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
+
+              {/* Brilho */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between font-data-mono text-[11px] text-on-surface-variant">
+                  <span>Brilho</span>
+                  <span className="text-on-surface">{params.brightness.toFixed(2)}</span>
+                </div>
+                <input type="range" min="-0.5" max="0.5" step="0.01" value={params.brightness} onChange={(e) => setParams({...params, brightness: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
+              </div>
+
+              {/* Curva Gamma */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between font-data-mono text-[11px] text-on-surface-variant">
+                  <span>Curva Gamma</span>
+                  <span className="text-on-surface">{params.gamma.toFixed(2)}</span>
+                </div>
+                <input type="range" min="0.5" max="2.5" step="0.05" value={params.gamma} onChange={(e) => setParams({...params, gamma: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
+              </div>
+
+              {/* Saturação */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between font-data-mono text-[11px] text-on-surface-variant">
+                  <span>Saturação Cromática</span>
+                  <span className="text-on-surface">{params.saturation.toFixed(2)}</span>
+                </div>
+                <input type="range" min="0.0" max="2.5" step="0.05" value={params.saturation} onChange={(e) => setParams({...params, saturation: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
+              </div>
             </div>
 
-            {/* Nitidez */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex justify-between font-data-mono text-[12px] text-on-surface-variant">
-                <span>Nitidez (RCAS)</span>
-                <span className="text-primary-fixed font-bold">{params.sharpenIntensity.toFixed(2)}</span>
-              </div>
-              <input type="range" min="0.0" max="1.0" step="0.01" value={params.sharpenIntensity} onChange={(e) => setParams({...params, sharpenIntensity: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
-            </div>
+            {/* Section 3: Limpeza Óptica & Sensor */}
+            <div className="flex flex-col gap-3 p-3 rounded-lg bg-surface-container-lowest/60 border border-outline-variant/50">
+              <h3 className="font-label-caps text-primary-fixed-dim text-[11px] uppercase tracking-wider flex items-center justify-between">
+                <span>Limpeza Óptica & Sensor</span>
+                <span className="material-symbols-outlined text-[15px]">lens</span>
+              </h3>
 
-            {/* Limiar de Ruído */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex justify-between font-data-mono text-[12px] text-on-surface-variant">
-                <span>Limiar (Ruído)</span>
-                <span className="text-on-surface">{params.edgeThreshold.toFixed(2)}</span>
+              {/* Limiar de Ruído */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between font-data-mono text-[11px] text-on-surface-variant">
+                  <span>Limiar Ruído (Denoise)</span>
+                  <span className="text-on-surface">{params.edgeThreshold.toFixed(2)}</span>
+                </div>
+                <input type="range" min="0.0" max="0.5" step="0.01" value={params.edgeThreshold} onChange={(e) => setParams({...params, edgeThreshold: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
               </div>
-              <input type="range" min="0.0" max="0.5" step="0.01" value={params.edgeThreshold} onChange={(e) => setParams({...params, edgeThreshold: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
+
+              {/* Correção Cromática Defringe */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between font-data-mono text-[11px] text-on-surface-variant">
+                  <span>Correção Cromática (Defringe)</span>
+                  <span className="text-on-surface">{params.defringe.toFixed(2)}</span>
+                </div>
+                <input type="range" min="0.0" max="1.0" step="0.01" value={params.defringe} onChange={(e) => setParams({...params, defringe: parseFloat(e.target.value)})} className="w-full accent-primary-fixed cursor-pointer" />
+              </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-col gap-2 pt-2">
+            <div className="flex flex-col gap-2 pt-1">
               <button
                 onClick={handleApply}
                 className={`w-full flex items-center justify-center gap-2 font-data-mono text-[12px] font-semibold py-2.5 px-4 rounded-md transition-all cursor-pointer ${
@@ -190,13 +361,6 @@ export default function Home() {
                 <span className="material-symbols-outlined text-[16px]">restart_alt</span>
                 <span>Restaurar Padrões</span>
               </button>
-            </div>
-          </div>
-
-          <div className="w-full mt-auto pt-6 border-t border-outline-variant/50">
-            <div className="flex justify-between items-center w-full text-data-mono font-data-mono">
-              <span className="text-on-surface-variant">FPS</span>
-              <span className="text-primary-fixed">{fps}</span>
             </div>
           </div>
         </aside>
