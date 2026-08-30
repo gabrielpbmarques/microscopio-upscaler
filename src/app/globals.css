@@ -86,17 +86,27 @@
 }
 
 /* Custom CSS */
-.scanlines {
-    background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.1) 50%, rgba(0, 0, 0, 0.1));
-    background-size: 100% 4px;
-    pointer-events: none;
-}
-
 .vignette {
-    box-shadow: inset 0 0 150px rgba(0, 0, 0, 0.8);
+    box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.7);
     pointer-events: none;
 }
 
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #3a4a44;
+    border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #00e0b3;
+}
 
 .glow-hover:hover {
     box-shadow: 0 0 10px rgba(0, 255, 204, 0.6);

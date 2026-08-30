@@ -23,6 +23,9 @@ export default function Home() {
   } = useMicroscope();
 
   const [appliedFeedback, setAppliedFeedback] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [showHUDOverlay, setShowHUDOverlay] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const handleApply = () => {
     applyParams();
@@ -34,6 +37,16 @@ export default function Home() {
     resetParams();
     setAppliedFeedback(true);
     setTimeout(() => setAppliedFeedback(false), 2000);
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen().catch(() => {});
+      setIsFullscreen(false);
+    }
   };
 
   const formatTime = (totalSeconds: number) => {
@@ -107,30 +120,33 @@ export default function Home() {
 
   return (
     <>
-      <main className="relative flex-1 bg-black overflow-hidden">
+      <main className="relative w-screen h-screen bg-black overflow-hidden select-none">
         {/* Synthetic Feed (when off) */}
         <div
           className={`absolute inset-0 z-[0] opacity-40 bg-[url('https://lh3.googleusercontent.com/aida-public/AB6AXuBYzwSopVfwNChzz99pbbfJKLV-pkvlNfg_DvLjA0C6El0M5oeU4a63PLW5smow1ycNF1Ke2meXvFTayPyrQKofC9ICFNQwmjt6klWlxnIEl3L3cPhiwed7oQVC56iOdrCSNYjMU9M3od0RiIuv01xvi-txZyfWdQV5seC7OgYpTHSFTsOM3YEjLDFy59Ia9rZIfUXZeCeKxnQnjIc6UU2z-_qrmbyv5lhudyhHEcGdOllspfmercxa')] bg-cover bg-center transition-opacity duration-700 ${isPowerOn ? 'hidden' : 'block'}`}
         />
 
-        {/* Video & Canvas */}
-        <video ref={videoRef} className={`w-full h-full object-cover ${(!isPowerOn || isUpscaledMode) ? 'hidden' : 'block'}`} />
-        <canvas ref={canvasRef} className={`w-full h-full object-cover ${(!isPowerOn || !isUpscaledMode) ? 'hidden' : 'block'}`} />
-
-        {/* HUD Overlays */}
-        <div className="absolute inset-0 scanlines z-10 pointer-events-none"></div>
-        <div className="absolute inset-0 vignette z-20 pointer-events-none"></div>
-
-        <div className="fixed inset-0 pointer-events-none z-30 flex items-center justify-center">
-          <div className="absolute top-1/2 left-0 w-full h-[0.5px] bg-primary-fixed-dim/30"></div>
-          <div className="absolute top-0 left-1/2 w-[0.5px] h-full bg-primary-fixed-dim/30"></div>
-          
-          <div className="absolute w-[120px] h-[120px] rounded-full border border-primary-fixed-dim/30"></div>
-          <div className="absolute w-[8px] h-[8px] rounded-full bg-primary-fixed-dim/50 shadow-[0_0_8px_#00e0b3]"></div>
+        {/* Video & Canvas (True Clean Full-Screen Display) */}
+        <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+          <video ref={videoRef} className={`w-full h-full object-contain ${(!isPowerOn || isUpscaledMode) ? 'hidden' : 'block'}`} />
+          <canvas ref={canvasRef} className={`w-full h-full object-contain ${(!isPowerOn || !isUpscaledMode) ? 'hidden' : 'block'}`} />
         </div>
 
+        {/* Optional Scientific HUD Overlays (Clean by default) */}
+        {showHUDOverlay && (
+          <>
+            <div className="absolute inset-0 vignette z-20 pointer-events-none"></div>
+            <div className="fixed inset-0 pointer-events-none z-30 flex items-center justify-center">
+              <div className="absolute top-1/2 left-0 w-full h-[0.5px] bg-primary-fixed-dim/20"></div>
+              <div className="absolute top-0 left-1/2 w-[0.5px] h-full bg-primary-fixed-dim/20"></div>
+              <div className="absolute w-[120px] h-[120px] rounded-full border border-primary-fixed-dim/20"></div>
+              <div className="absolute w-[6px] h-[6px] rounded-full bg-primary-fixed-dim/40 shadow-[0_0_6px_#00e0b3]"></div>
+            </div>
+          </>
+        )}
+
         {/* TopNavBar */}
-        <header className="fixed top-0 left-0 w-full flex items-start justify-between p-edge-margin z-40 pointer-events-none">
+        <header className="fixed top-0 left-0 p-edge-margin z-40 pointer-events-none">
           <div className="flex flex-col gap-1">
             <h1 className="font-headline-md tracking-tight text-primary-fixed drop-shadow-[0_0_8px_rgba(36,255,205,0.4)] m-0">
               Micro-Lens AI
@@ -145,8 +161,27 @@ export default function Home() {
           </div>
         </header>
 
-        {/* SideNavBar - Controls */}
-        <aside className="hidden md:flex fixed right-0 top-0 h-full w-[360px] bg-surface/85 backdrop-blur-xl border-l border-outline-variant shadow-2xl flex-col items-start py-6 px-edge-margin gap-5 z-40 overflow-y-auto pointer-events-auto custom-scrollbar">
+        {/* Floating Toggle Button for Side Menu */}
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className={`fixed top-6 z-50 p-2.5 rounded-full backdrop-blur-md border border-outline-variant shadow-2xl transition-all duration-300 cursor-pointer flex items-center justify-center ${
+            isSidebarOpen 
+              ? 'right-[380px] bg-surface-container-lowest/90 text-on-surface-variant hover:text-primary-fixed hover:bg-surface-bright' 
+              : 'right-6 bg-primary-fixed text-on-primary-fixed shadow-[0_0_18px_rgba(36,255,205,0.6)] hover:scale-105 active:scale-95'
+          }`}
+          title={isSidebarOpen ? "Ocultar Painel (Tela Cheia)" : "Abrir Painel de Ajustes"}
+        >
+          <span className="material-symbols-outlined text-[22px]">
+            {isSidebarOpen ? "chevron_right" : "tune"}
+          </span>
+        </button>
+
+        {/* Retractable SideNavBar - Controls */}
+        <aside
+          className={`fixed right-0 top-0 h-full w-[360px] bg-surface/90 backdrop-blur-2xl border-l border-outline-variant shadow-2xl flex flex-col items-start py-6 px-edge-margin gap-5 z-40 overflow-y-auto pointer-events-auto custom-scrollbar transition-transform duration-300 ease-in-out ${
+            isSidebarOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+        >
           <div className="w-full flex justify-between items-center pb-2 border-b border-outline-variant/40">
             <p className="font-data-mono text-[12px] text-on-surface-variant">
               Sessão: <span className="text-primary-fixed">{formatTime(sessionSeconds)}</span>
@@ -366,24 +401,70 @@ export default function Home() {
         </aside>
 
         {/* BottomNavBar */}
-        <nav className="fixed bottom-viewport-safe-area left-1/2 -translate-x-1/2 flex items-center gap-panel-gap z-50 bg-surface-container-lowest/80 backdrop-blur-md border border-outline-variant shadow-[0_0_20px_rgba(0,0,0,0.5)] rounded-full px-6 py-3 pointer-events-auto">
+        <nav className="fixed bottom-viewport-safe-area left-1/2 -translate-x-1/2 flex items-center gap-4 z-50 bg-surface-container-lowest/85 backdrop-blur-xl border border-outline-variant shadow-[0_0_25px_rgba(0,0,0,0.6)] rounded-full px-5 py-2.5 pointer-events-auto">
+          {/* Power Button */}
           <button
             onClick={togglePower}
-            className={`flex flex-col items-center justify-center gap-1 w-16 h-16 rounded-full transition-all cursor-pointer ${isPowerOn ? 'bg-primary-fixed text-on-primary-fixed shadow-[0_0_15px_#00e0b3]' : 'bg-surface-variant text-on-surface-variant hover:text-primary-fixed hover:bg-surface-variant/90 active:scale-90'}`}
+            className={`flex flex-col items-center justify-center gap-0.5 w-14 h-14 rounded-full transition-all cursor-pointer ${isPowerOn ? 'bg-primary-fixed text-on-primary-fixed shadow-[0_0_15px_#00e0b3]' : 'bg-surface-variant text-on-surface-variant hover:text-primary-fixed hover:bg-surface-variant/90 active:scale-90'}`}
+            title="Ligar/Desligar Câmera"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '28px' }}>power_settings_new</span>
-            <span className="font-label-caps text-[9px] uppercase tracking-wider sr-only md:not-sr-only md:text-[10px]">Energia</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>power_settings_new</span>
+            <span className="font-label-caps text-[8px] uppercase tracking-wider">Energia</span>
           </button>
 
+          {/* Upscale / Direct View Toggle */}
           <button
             onClick={toggleMode}
-            className="flex flex-col items-center justify-center gap-1 w-16 h-16 rounded-full hover:bg-surface-variant/50 active:scale-90 transition-all cursor-pointer"
+            className="flex flex-col items-center justify-center gap-0.5 w-14 h-14 rounded-full hover:bg-surface-variant/50 active:scale-90 transition-all cursor-pointer"
+            title="Alternar entre FSR Upscaled e Visão Direta"
           >
-            <span className={`material-symbols-outlined ${isUpscaledMode ? 'text-primary-fixed glow-hover' : 'text-secondary-fixed-dim'}`} style={{ fontSize: '28px' }}>
+            <span className={`material-symbols-outlined ${isUpscaledMode ? 'text-primary-fixed drop-shadow-[0_0_6px_rgba(36,255,205,0.6)]' : 'text-secondary-fixed-dim'}`} style={{ fontSize: '24px' }}>
               {isUpscaledMode ? "visibility" : "visibility_off"}
             </span>
-            <span className="font-label-caps text-[9px] uppercase tracking-wider text-secondary-fixed-dim sr-only md:not-sr-only md:text-[10px]">
-              Modo de Visão
+            <span className="font-label-caps text-[8px] uppercase tracking-wider text-secondary-fixed-dim">
+              {isUpscaledMode ? "FSR 4K" : "Direto"}
+            </span>
+          </button>
+
+          {/* Scientific HUD Overlay Toggle */}
+          <button
+            onClick={() => setShowHUDOverlay(!showHUDOverlay)}
+            className={`flex flex-col items-center justify-center gap-0.5 w-14 h-14 rounded-full hover:bg-surface-variant/50 active:scale-90 transition-all cursor-pointer ${showHUDOverlay ? 'text-primary-fixed' : 'text-on-surface-variant'}`}
+            title="Ativar/Desativar Mira e Vinheta HUD"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>
+              {showHUDOverlay ? "filter_center_focus" : "center_focus_weak"}
+            </span>
+            <span className="font-label-caps text-[8px] uppercase tracking-wider text-secondary-fixed-dim">
+              Mira HUD
+            </span>
+          </button>
+
+          {/* Sidebar Toggle */}
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className={`flex flex-col items-center justify-center gap-0.5 w-14 h-14 rounded-full hover:bg-surface-variant/50 active:scale-90 transition-all cursor-pointer ${isSidebarOpen ? 'text-primary-fixed' : 'text-on-surface-variant'}`}
+            title="Abrir/Fechar Painel de Ajustes"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>
+              {isSidebarOpen ? "dock_to_right" : "vertical_split"}
+            </span>
+            <span className="font-label-caps text-[8px] uppercase tracking-wider text-secondary-fixed-dim">
+              Painel
+            </span>
+          </button>
+
+          {/* Fullscreen Toggle */}
+          <button
+            onClick={toggleFullscreen}
+            className="flex flex-col items-center justify-center gap-0.5 w-14 h-14 rounded-full hover:bg-surface-variant/50 active:scale-90 transition-all cursor-pointer text-on-surface-variant hover:text-primary-fixed"
+            title="Alternar Tela Cheia"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>
+              {isFullscreen ? "fullscreen_exit" : "fullscreen"}
+            </span>
+            <span className="font-label-caps text-[8px] uppercase tracking-wider text-secondary-fixed-dim">
+              {isFullscreen ? "Sair" : "Cheia"}
             </span>
           </button>
         </nav>
