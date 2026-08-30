@@ -125,18 +125,26 @@ export function useMicroscope() {
             if (!fsrRef.current) {
               const fsr = await initWebGPU();
               if (fsr) {
-                await fsr.initialize(
-                  videoRef.current!.videoWidth,
-                  videoRef.current!.videoHeight,
-                  canvasRef.current!.width,
-                  canvasRef.current!.height
-                );
-                fsr.updateParams(paramsRef.current.brightness, paramsRef.current.contrast, paramsRef.current.sharpenIntensity, paramsRef.current.edgeThreshold);
                 fsrRef.current = fsr;
               } else {
                 setSignalStatus("FALHA: WEBGPU");
                 return;
               }
+            }
+
+            if (fsrRef.current && videoRef.current && canvasRef.current) {
+              await fsrRef.current.initialize(
+                videoRef.current.videoWidth,
+                videoRef.current.videoHeight,
+                canvasRef.current.width,
+                canvasRef.current.height
+              );
+              fsrRef.current.updateParams(
+                paramsRef.current.brightness,
+                paramsRef.current.contrast,
+                paramsRef.current.sharpenIntensity,
+                paramsRef.current.edgeThreshold
+              );
             }
 
             isPowerOnRef.current = true;
