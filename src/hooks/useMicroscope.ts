@@ -40,20 +40,22 @@ export function useMicroscope() {
       return null;
     }
 
-    const adapter = await navigator.gpu.requestAdapter();
+    const adapter = await navigator.gpu.requestAdapter({
+      powerPreference: 'high-performance'
+    });
     if (!adapter) {
       console.error("No appropriate GPUAdapter found.");
       return null;
     }
-    
+
     const device = await adapter.requestDevice();
     const canvas = canvasRef.current;
     if (!canvas) return null;
 
     const context = canvas.getContext('webgpu') as GPUCanvasContext | null;
     if (!context) {
-        console.error("WebGPU context could not be created.");
-        return null;
+      console.error("WebGPU context could not be created.");
+      return null;
     }
 
     context.configure({
@@ -70,19 +72,19 @@ export function useMicroscope() {
   useEffect(() => {
     paramsRef.current = params;
     if (fsrRef.current) {
-        fsrRef.current.updateParams(
-            params.brightness,
-            params.contrast,
-            params.sharpenIntensity,
-            params.edgeThreshold
-        );
+      fsrRef.current.updateParams(
+        params.brightness,
+        params.contrast,
+        params.sharpenIntensity,
+        params.edgeThreshold
+      );
     }
   }, [params]);
 
   function renderLoop(timestamp: number) {
     const video = videoRef.current;
     const fsr = fsrRef.current;
-    
+
     if (!fsr || !video || !isPowerOnRef.current) return;
 
     if (video.readyState >= video.HAVE_CURRENT_DATA) {
@@ -107,10 +109,10 @@ export function useMicroscope() {
       setSignalStatus("CONECTANDO...");
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1920 }, height: { ideal: 1080 } }
+          video: { width: { ideal: 3840 }, height: { ideal: 2160 } }
         });
         streamRef.current = stream;
-        
+
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.onloadedmetadata = async () => {
@@ -123,17 +125,17 @@ export function useMicroscope() {
             if (!fsrRef.current) {
               const fsr = await initWebGPU();
               if (fsr) {
-                  await fsr.initialize(
-                      videoRef.current!.videoWidth, 
-                      videoRef.current!.videoHeight, 
-                      canvasRef.current!.width, 
-                      canvasRef.current!.height
-                  );
-                  fsr.updateParams(paramsRef.current.brightness, paramsRef.current.contrast, paramsRef.current.sharpenIntensity, paramsRef.current.edgeThreshold);
-                  fsrRef.current = fsr;
+                await fsr.initialize(
+                  videoRef.current!.videoWidth,
+                  videoRef.current!.videoHeight,
+                  canvasRef.current!.width,
+                  canvasRef.current!.height
+                );
+                fsr.updateParams(paramsRef.current.brightness, paramsRef.current.contrast, paramsRef.current.sharpenIntensity, paramsRef.current.edgeThreshold);
+                fsrRef.current = fsr;
               } else {
-                  setSignalStatus("FALHA: WEBGPU");
-                  return;
+                setSignalStatus("FALHA: WEBGPU");
+                return;
               }
             }
 
