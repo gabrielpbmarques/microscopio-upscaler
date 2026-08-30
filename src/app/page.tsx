@@ -156,7 +156,20 @@ export default function Home() {
               Sinal: <span>{signalStatus}</span>
             </div>
             <div className="font-data-mono text-[10px] text-on-surface-variant uppercase mt-1">
-              MODO: <span className="text-primary-fixed">{isUpscaledMode ? `FSR ${upscaleTarget.toUpperCase()} ULTRA` : "VISÃO DIRETA"}</span>
+              MODO:{" "}
+              <span className="text-primary-fixed font-bold">
+                {isUpscaledMode
+                  ? upscaleTarget === 'ultra_quality'
+                    ? "FSR 1.0 ULTRA QUALITY (1.3X)"
+                    : upscaleTarget === 'quality'
+                    ? "FSR 1.0 QUALITY (1.5X)"
+                    : upscaleTarget === 'balanced'
+                    ? "FSR 1.0 BALANCED (1.7X)"
+                    : upscaleTarget === 'performance'
+                    ? "FSR 1.0 PERFORMANCE (2.0X)"
+                    : "FSR 1.0 4K UHD NATIVO"
+                  : "VISÃO DIRETA"}
+              </span>
             </div>
           </div>
         </header>
@@ -192,24 +205,33 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Upscaling Resolution Engine */}
+          {/* AMD FidelityFX FSR 1.0 Quality Modes */}
           <div className="w-full flex flex-col gap-2">
             <h2 className="font-label-caps text-primary-fixed text-[13px] flex items-center justify-between">
-              <span>Resolução de Upscaling</span>
-              <span className="text-[10px] text-on-surface-variant font-normal uppercase">EASU FSR 1.0</span>
+              <span>AMD FidelityFX FSR 1.0</span>
+              <span className="text-[9px] text-primary-fixed-dim/80 font-normal uppercase">Oficial</span>
             </h2>
-            <div className="grid grid-cols-3 gap-1.5">
-              {(['2x', '4k', '4x'] as const).map(target => (
+            <div className="grid grid-cols-2 gap-1.5">
+              {[
+                { id: 'ultra_quality', label: 'Ultra Quality (1.3x)', badge: 'Máx. Fidelidade' },
+                { id: 'quality', label: 'Quality (1.5x)', badge: 'Alta Definição' },
+                { id: 'balanced', label: 'Balanced (1.7x)', badge: 'Equilibrado' },
+                { id: 'performance', label: 'Performance (2.0x)', badge: '2x Zoom' },
+                { id: '4k', label: '4K Nativo', badge: '3840x2160' },
+              ].map((mode, idx) => (
                 <button
-                  key={target}
-                  onClick={() => changeUpscaleTarget(target)}
-                  className={`font-data-mono text-[11px] py-1.5 px-1 rounded transition-all border cursor-pointer uppercase ${
-                    upscaleTarget === target
-                      ? 'bg-primary-fixed text-on-primary-fixed border-primary-fixed font-bold shadow-[0_0_10px_rgba(36,255,205,0.4)]'
-                      : 'bg-surface-variant hover:bg-surface-bright text-on-surface-variant border-outline-variant'
+                  key={mode.id}
+                  onClick={() => changeUpscaleTarget(mode.id as any)}
+                  className={`flex flex-col items-start p-2 rounded transition-all border cursor-pointer ${
+                    idx === 4 ? 'col-span-2' : ''
+                  } ${
+                    upscaleTarget === mode.id
+                      ? 'bg-primary-fixed/15 border-primary-fixed text-primary-fixed font-bold shadow-[0_0_10px_rgba(36,255,205,0.3)]'
+                      : 'bg-surface-variant/80 hover:bg-surface-bright text-on-surface-variant border-outline-variant'
                   }`}
                 >
-                  {target === '4k' ? '4K Nativo' : `${target.toUpperCase()} UHD`}
+                  <span className="font-data-mono text-[11px] leading-tight">{mode.label}</span>
+                  <span className="font-data-mono text-[9px] text-on-surface-variant/70 mt-0.5">{mode.badge}</span>
                 </button>
               ))}
             </div>

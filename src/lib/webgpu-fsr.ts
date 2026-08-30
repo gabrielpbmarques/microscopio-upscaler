@@ -41,10 +41,14 @@ export class WebGPUFSR {
     if (this.textureFinal) this.textureFinal.destroy();
     if (this.uniformBuffer) this.uniformBuffer.destroy();
 
+    const maxDim = this.device.limits?.maxTextureDimension2D || 8192;
+    const safeWidth = Math.min(canvasWidth, maxDim);
+    const safeHeight = Math.min(canvasHeight, maxDim);
+
     this.videoWidth = videoWidth;
     this.videoHeight = videoHeight;
-    this.canvasWidth = canvasWidth;
-    this.canvasHeight = canvasHeight;
+    this.canvasWidth = safeWidth;
+    this.canvasHeight = safeHeight;
 
     // 1. Create Textures
     this.textureInput = this.device.createTexture({
@@ -60,13 +64,13 @@ export class WebGPUFSR {
     });
 
     this.textureUpscaled = this.device.createTexture({
-      size: [canvasWidth, canvasHeight, 1],
+      size: [safeWidth, safeHeight, 1],
       format: 'rgba8unorm',
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
     });
 
     this.textureFinal = this.device.createTexture({
-      size: [canvasWidth, canvasHeight, 1],
+      size: [safeWidth, safeHeight, 1],
       format: 'rgba8unorm',
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
     });

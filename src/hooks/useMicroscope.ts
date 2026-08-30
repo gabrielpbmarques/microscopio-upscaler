@@ -15,7 +15,7 @@ export interface WebGPUParameters {
   colorMode: number; // 0=Normal, 1=DAPI, 2=GFP, 3=H&E, 4=Fase/Invertido
 }
 
-export type UpscaleTarget = '2x' | '4k' | '4x';
+export type UpscaleTarget = 'ultra_quality' | 'quality' | 'balanced' | 'performance' | '4k';
 
 export function useMicroscope() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -24,7 +24,7 @@ export function useMicroscope() {
   const [isPowerOn, setIsPowerOn] = useState(false);
   const isPowerOnRef = useRef(false);
   const [isUpscaledMode, setIsUpscaledMode] = useState(true);
-  const [upscaleTarget, setUpscaleTarget] = useState<UpscaleTarget>('4k');
+  const [upscaleTarget, setUpscaleTarget] = useState<UpscaleTarget>('ultra_quality');
   const [signalStatus, setSignalStatus] = useState("AGUARDANDO");
   const [fps, setFps] = useState(0);
   const [sessionSeconds, setSessionSeconds] = useState(0);
@@ -87,15 +87,21 @@ export function useMicroscope() {
 
   const getTargetDimensions = (videoWidth: number, videoHeight: number, target: UpscaleTarget) => {
     const aspect = videoHeight > 0 ? videoWidth / videoHeight : 16 / 9;
-    if (target === '4k') {
-      const targetW = 3840;
-      const targetH = Math.round(targetW / aspect);
-      return { width: targetW, height: targetH };
-    } else if (target === '4x') {
-      return { width: videoWidth * 4, height: videoHeight * 4 };
-    } else {
-      // 2x
-      return { width: videoWidth * 2, height: videoHeight * 2 };
+    switch (target) {
+      case 'ultra_quality': // 1.3x AMD FidelityFX FSR Ultra Quality Mode
+        return { width: Math.round(videoWidth * 1.3), height: Math.round(videoHeight * 1.3) };
+      case 'quality': // 1.5x AMD FidelityFX FSR Quality Mode
+        return { width: Math.round(videoWidth * 1.5), height: Math.round(videoHeight * 1.5) };
+      case 'balanced': // 1.7x AMD FidelityFX FSR Balanced Mode
+        return { width: Math.round(videoWidth * 1.7), height: Math.round(videoHeight * 1.7) };
+      case 'performance': // 2.0x AMD FidelityFX FSR Performance Mode
+        return { width: Math.round(videoWidth * 2.0), height: Math.round(videoHeight * 2.0) };
+      case '4k': // 4K Native Target (3840x2160)
+        const targetW = 3840;
+        const targetH = Math.round(targetW / aspect);
+        return { width: targetW, height: targetH };
+      default:
+        return { width: Math.round(videoWidth * 1.3), height: Math.round(videoHeight * 1.3) };
     }
   };
 
